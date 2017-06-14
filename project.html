@@ -4,23 +4,18 @@
 
 		<meta charset="utf-8">
 
-		<title>俄罗斯方块</title>
+		<title>俄罗斯方块！</title>
 
 		<style type="text/css">
 			/*整个画布*/
-			
 			#tetris {
-				border: 6px solid grey;
+				border: 6px solid black;
 			}
 			/*游戏面板*/
 		</style>
-
 	</head>
-
 	<body>
-
-		<canvas id="tetris" width="565" height="576"></canvas>
-
+		<canvas id="tetris" width="320" height="576"></canvas>
 		<script type="text/javascript">
 			var canvas = document.getElementById("tetris");
 			var context = canvas.getContext("2d");
@@ -32,21 +27,19 @@
 				maxY = 18,
 				score = 0,
 				level = 1;
-			var gameMap = new Array(); //游戏地图，二维数组
+			var gameMap = new Array(); 
 			var gameTimer;
 			initGameMap();
 			//绘制垂直线条
 			drawGrid();
 			var arrays = basicBlockType();
 			var blockIndex = getRandomIndex();
-			//随机画一个方块意思意思
+			//随机画一个方块
 			var block = getPointByCode(blockIndex);
 			context.fillStyle = getBlockColorByIndex(blockIndex);
 			drawBlock(block);
 			/**
-
 			 * 初始化游戏地图
-
 			 */
 			function initGameMap() {
 				for (var i = 0; i < maxY; i++) {
