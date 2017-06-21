@@ -1,603 +1,275 @@
-<html>
-
-	<head>
-
-		<meta charset="utf-8">
-
-		<title>俄罗斯方块！</title>
-
-		<style type="text/css">
-			/*整个画布*/
-			#tetris {
-				border: 6px solid black;
-			}
-			/*游戏面板*/
-		</style>
-	</head>
-	<body>
-		<canvas id="tetris" width="320" height="576"></canvas>
-		<script type="text/javascript">
-			var canvas = document.getElementById("tetris");
-			var context = canvas.getContext("2d");
-			var padding = 6,
-				size = 32,
-				minX = 0,
-				maxX = 10,
-				minY = 0,
-				maxY = 18,
-				score = 0,
-				level = 1;
-			var gameMap = new Array(); 
-			var gameTimer;
-			initGameMap();
-			//绘制垂直线条
-			drawGrid();
-			var arrays = basicBlockType();
-			var blockIndex = getRandomIndex();
-			//随机画一个方块
-			var block = getPointByCode(blockIndex);
-			context.fillStyle = getBlockColorByIndex(blockIndex);
-			drawBlock(block);
-			/**
-			 * 初始化游戏地图
-			 */
-			function initGameMap() {
-				for (var i = 0; i < maxY; i++) {
-					var row = new Array();
-					for (var j = 0; j < maxX; j++) {
-						row[j] = false;
-					}
-					gameMap[i] = row;
-				}
-			}
-			/**
-
-			 * 方块旋转
-
-			 * 顺时针：
-
-			 * A.x =O.y + O.x - B.y
-
-			 * A.y =O.y - O.x + B.x
-
-			 */
-			function round() {
-				//正方形的方块不响应旋转   
-				if (blockIndex == 4) {
-					return;
-				}
-				//循环处理当前的方块，找新的旋转点
-				for (var i = 1; i < block.length; i++) {
-					var o = block[0];
-					var point = block[i];
-					//旋转后的位置不能与现有格子的方块冲突
-					var tempX = o.y + o.x - point.y;
-					var tempY = o.y - o.x + point.x;
-					if (isOverZone(tempX, tempY)) {
-						return; //不可旋转
-					}
-				}
-				clearBlock();
-				//可以旋转，设置新的旋转后的坐标
-				for (var i = 1; i < block.length; i++) {
-					var o = block[0];
-					var point = block[i];
-					//旋转后的位置不能与现有格子的方块冲突
-					var tempX = o.y + o.x - point.y;
-					var tempY = o.y - o.x + point.x;
-					block[i] = {
-						x: tempX,
-						y: tempY
-					};
-				}
-				drawBlock();
-			}
-			function moveDown() {
-				
-				var overFlag = canOver();
-				if(overFlag){
-					//如果不能向下移动了，将当前的方块坐标载入地图
-					window.clearInterval(gameTimer);
-					add2GameMap();
-					//清除游戏区域内的不同颜色的格子，使用单一颜色重新绘制地图堆积物
-					redrawGameMap();
-					return;//游戏结束
-				}
-				
-				var flag = moveTo(0, 1);
-				//如果可以移动，则继续移动
-				if (flag) {
-					return;
-				}
-				//如果不能向下移动了，将当前的方块坐标载入地图
-				add2GameMap();
-				
-				//进行消行动作
-				clearLines();
-				//清除游戏区域内的不同颜色的格子，使用单一颜色重新绘制地图堆积物
-				redrawGameMap();
-				//如果不能向下移动，则继续下一个方块
-				nextBlock();
-			}
-			
-			/**
-
-			 * 消行动作，返回消除的行数
-
-			 */
-			function clearLines() {
-				var clearRowList = new Array();
-				for (var i = 0; i < maxY; i++) {
-					var flag = true;
-					for (var j = 0; j < maxX; j++) {
-						if (gameMap[i][j] == false) {
-							flag = false;
-							break;
-						}
-					}
-					if (flag) {
-						clearRowList.push(i); //记录消除行号的索引
-					}
-				}
-				var clearRows = clearRowList.length;
-				//所谓的消行就是将待消除行的索引，下方所有的格子上移动
-				for (var x = 0; x < clearRows; x++) {
-					var index = clearRowList[x];
-					for (var i = index; i > 0; i--) {
-						for (var j = 0; j < maxX; j++) {
-							gameMap[i][j] = gameMap[i - 1][j];
-						}
-					}
-				}
-				if (clearRows > 0) {
-					for (var i = 0; i < maxY; i++) {
-						//此处可以限制满足相关条件的方块进行清除操作&& j < clearRowList[clearRows - 1]
-						for (var j = 0; j < maxX; j++) {
-							if (gameMap[i][j] == false) {
-								clearBlockByPoint(i, j);
-							}
-						}
-					}
-				}
-			}
-			/**
-
-			 * 重绘游戏地图
-
-			 */
-			function redrawGameMap() {
-				drawGrid();
-				for (var i = 0; i < maxY; i++) {
-					for (var j = 0; j < maxX; j++) {
-						if (gameMap[i][j]) {
-							roadBlock(j, i);
-						}
-					}
-				}
-			}
-			/**
-
-			 * 打印阴影地图
-
-			 */
-			function drawShadowBlock() {
-				var currentBlock = block;
-				var shadowPoints = getCanMoveDown();
-				if (shadowPoints != null && shadowPoints.length > 0) {
-					for (var i = 0; i < shadowPoints.length; i++) {
-						var point = shadowPoints[i];
-						if (point == null) {
-							continue;
-						}
-						var start = point.x * size;
-						var end = point.y * size;
-						context.fillStyle = "#abcdef";
-						context.fillRect(start, end, size, size);
-						context.strokeStyle = "black";
-						context.strokeRect(start, end, size, size);
-					}
-				}
-			}
-			/**
-
-			 * 返回最多可移动到的坐标位置（统计总共可以下落多少步骤）
-
-			 * @return最多可移动到的坐标位置
-
-			 */
-			function getCanMoveDown() {
-				var nps = canMove(0, 1, block);
-				var last = null;
-				if (nps != null) {
-					last = new Array();
-					while ((nps = canMove(0, 1, nps)) != null) {
-						if (nps != null) {
-							last = nps;
-						}
-					}
-				}
-				return last;
-			}
-			
-			function canOver(){
-				var flag = false;
-				for (var i = 0; i < block.length; i++) {
-					var point = block[i];
-					var x = point.x;
-					var y = point.y;
-					if(isOverZone(x , y)){
-						flag = true;
-						break;
-					}
-				}
-				return flag;
-			}
-			
-			function drawLevelScore() {
-				
-			}
-			/**
-
-			 * 将不能移动的各种填充至地图
-
-			 */
-			function add2GameMap() {
-				for (var i = 0; i < block.length; i++) {
-					var point = block[i];
-					var x = point.x;
-					var y = point.y;
-					var gameMapRow = gameMap[y]; //获取到地图的一行
-					gameMapRow[x] = true; //将此行中的某个格子标记为堆积物
-					gameMap[y] = gameMapRow; //再将行给设置回来
-				}
-			}
-			function moveLeft() {
-				moveTo(-1, 0);
-			}
-			function moveRight() {
-				moveTo(1, 0);
-			}
-			function quickDown() {
-				while (moveTo(0, 1));
-			}
-			function moveTo(moveX, moveY) {
-				var move = canMove(moveX, moveY, block); //判定是否可以移动
-				if (move == null) {
-					return false;
-				}
-				clearBlock();
-				for (var i = 0; i < block.length; i++) {
-					var point = block[i];
-					point.x = point.x + moveX;
-					point.y = point.y + moveY;
-				}
-				drawBlock();
-				return true;
-			}
-			/**
-
-			 * 下一个方块
-
-			 */
-			function nextBlock() {
-				blockIndex = getRandomIndex();
-				block = getPointByCode(blockIndex);
-				context.fillStyle = getBlockColorByIndex(blockIndex);
-				drawBlock();
-			}
-			document.onkeypress = function(evt) {
-				var key = window.event ? evt.keyCode : evt.which;
-				switch (key) {
-					case 119: //向上旋转 W
-						round();
-						break;
-					case 115: //向下移动  S
-						moveDown();
-						break;
-					case 97: //向左移动 A
-						moveLeft();
-						break;
-					case 100: //向右移动 D
-						moveRight();
-						break;
-					case 32: //空格键快速下落到底
-						quickDown();
-						break;
-				}
-			}
-			/**
-
-			 * 判定是否可以移动
-
-			 * @parammoveX 横向移动的个数
-
-			 * @parammoveY 纵向移动的个数
-
-			 */
-			function canMove(moveX, moveY, currentBlock) {
-				var flag = true;
-				var newPoints = new Array();
-				for (var i = 0; i < currentBlock.length; i++) {
-					var point = currentBlock[i];
-					var tempX = point.x + moveX;
-					var tempY = point.y + moveY;
-					if (isOverZone(tempX, tempY)) {
-						flag = false;
-						break;
-					}
-				}
-				if (flag) {
-					for (var i = 0; i < currentBlock.length; i++) {
-						var point = currentBlock[i];
-						var tempX = point.x + moveX;
-						var tempY = point.y + moveY;
-						newPoints[i] = {
-							x: tempX,
-							y: tempY
-						};
-					}
-					return newPoints;
-				}
-				return null;
-			}
-			/**
-
-			 * 判定是否可以移动
-
-			 * @paramx 预移动后的横坐标
-
-			 * @paramy 预移动后的纵坐标
-
-			 */
-			function isOverZone(x, y) {
-				return x < minX || x >= maxX || y < minY || y >= maxY || gameMap[y][x];
-			}
-			document.body.click();
-			
-			gameTimer = window.setInterval(moveDown , 800);
-			
-			/**
-
-			 * 初始化方块的基础数据
-
-			 */
-			function basicBlockType() {
-				var arrays = new Array();
-				arrays[0] = [{
-					x: 4,
-					y: 0
-				}, {
-					x: 3,
-					y: 0
-				}, {
-					x: 5,
-					y: 0
-				}, {
-					x: 6,
-					y: 0
-				}];
-				arrays[1] = [{
-					x: 4,
-					y: 0
-				}, {
-					x: 3,
-					y: 0
-				}, {
-					x: 5,
-					y: 0
-				}, {
-					x: 4,
-					y: 1
-				}];
-				arrays[2] = [{
-					x: 4,
-					y: 0
-				}, {
-					x: 3,
-					y: 0
-				}, {
-					x: 5,
-					y: 0
-				}, {
-					x: 3,
-					y: 1
-				}];
-				arrays[3] = [{
-					x: 4,
-					y: 0
-				}, {
-					x: 5,
-					y: 0
-				}, {
-					x: 3,
-					y: 1
-				}, {
-					x: 4,
-					y: 1
-				}];
-				arrays[4] = [{
-					x: 4,
-					y: 0
-				}, {
-					x: 5,
-					y: 0
-				}, {
-					x: 4,
-					y: 1
-				}, {
-					x: 5,
-					y: 1
-				}];
-				arrays[5] = [{
-					x: 4,
-					y: 0
-				}, {
-					x: 3,
-					y: 0
-				}, {
-					x: 5,
-					y: 0
-				}, {
-					x: 5,
-					y: 1
-				}];
-				arrays[6] = [{
-					x: 4,
-					y: 0
-				}, {
-					x: 3,
-					y: 0
-				}, {
-					x: 4,
-					y: 1
-				}, {
-					x: 5,
-					y: 1
-				}];
-				return arrays;
-			}
-			function basicBlockColor() {
-				return ["#A00000", "#A05000", "#A0A000", "#00A000", "#00A0A0", "#0000A0", "#A000A0"];
-			}
-			function getBlockColorByIndex(typeCodeIndex) {
-				var arrays = basicBlockColor();
-				return arrays[typeCodeIndex];
-			}
-			/**
-
-			 * 根据编号返回指定编号的方块
-
-			 * @paramtypeCodeIndex 方块编号索引
-
-			 */
-			function getPointByCode(typeCodeIndex) {
-				var arrays = basicBlockType();
-				return arrays[typeCodeIndex];
-			}
-			/**
-
-			 * 获取随即出现方块的范围值
-
-			 * @paramlens 随机数的范围
-
-			 */
-			function getRandomIndex() {
-				return parseInt(Math.random() * (arrays.length - 1), 10);
-			}
-			/**
-
-			 * 绘制方块，按格子单个绘制
-
-			 */
-			function drawBlock() {
-				drawGrid();
-				for (var i = 0; i < block.length; i++) {
-					var point = block[i];
-					var start = point.x * size;
-					var end = point.y * size;
-					context.fillStyle = getBlockColorByIndex(blockIndex);
-					context.fillRect(start, end, size, size);
-					context.strokeStyle = "black";
-					context.strokeRect(start, end, size, size);
-				}
-				drawShadowBlock();
-			}
-			/**
-
-			 * 绘制障碍物
-
-			 */
-			function roadBlock(x, y) {
-				context.fillStyle = "darkgray";
-				var start = x * size;
-				var end = y * size;
-				context.fillRect(start, end, size, size);
-			}
-			/**
-
-			 * 绘制新的方块先清除之前的方块
-
-			 */
-			function clearBlock() {
-				for (var i = 0; i < block.length; i++) {
-					var point = block[i];
-					var start = point.x * size;
-					var end = point.y * size;
-					context.clearRect(start, end, size, size);
-				}
-			}
-			/**
-
-			 * 初始化一个新的行
-
-			 */
-			function initGameMapRow() {
-				var array = new Array();
-				for (var i = 0; i < maxX; i++) {
-					array[i] = false;
-				}
-				return array;
-			}
-			/**
-
-			 * 根据坐标清除指定格子的内容
-
-			 * @paramx 横坐标
-
-			 * @paramy 纵坐标
-
-			 */
-			function clearBlockByPoint(x, y) {
-				var start = y * size;
-				var end = x * size;
-				context.clearRect(start, end, size, size);
-			}
-			/**
-
-			 * 清掉所有位置的空白格的绘图
-
-			 */
-			function clearAllNullPoint() {
-				for (var i = 0; i < maxY; i++) {
-					for (var j = 0; j < maxX; j++) {
-						if (gameMap[i][j] == false) {
-							clearBlockByPoint(i, j);
-						}
-					}
-				}
-			}
-			/**
-
-			 * 绘制网格线
-
-			 * @paramcontext 绘图对象
-
-			 */
-			function drawGrid() {
-				clearAllNullPoint(); //清除掉当前方块下落位置造成的阴影
-				context.strokeStyle = "grey"; //画笔颜色
-				for (var i = 0; i <= maxX; i++) {
-					var start = i * size;
-					var end = start + size;
-					context.beginPath();
-					context.moveTo(start, 0);
-					context.lineTo(size * i, size * maxY);
-					context.stroke();
-					context.closePath();
-				}
-				//绘制水平线条
-				for (var i = 0; i <= maxY; i++) {
-					var start = i * size;
-					var end = start + size;
-					context.beginPath();
-					context.moveTo(0, size * i);
-					context.lineTo(size * maxX, size * i);
-					context.stroke();
-					context.closePath();
-				}
-			}
-		</script>
-
-	</body>
-
+<html>  
+    <head>  
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">  
+        <title>2048 Game</title>  
+        <style>  
+            table{  
+                border-spacing:2;  
+                text-align:center;  
+                width:375px;  
+                height:375px;  
+            }  
+            td{  
+                width:20%;  
+                height:20%;  
+                text-align:center;  
+            }  
+              
+        </style>  
+        <script>  
+            var table = new Array(new Array(),new Array(),new Array(),new Array(),new Array(),new Array());  // 5*5 array(except 0th)  
+            var is_moved = false ;  // is there any data be moved  
+            function get_score(){     // get the score  
+                var max = 0;  
+                var i,j;  
+                for(i=1;i<=5;i++)  
+                    for(j=1;j<=5;j++){  
+                        if(table[i][j]>max)  
+                            max = table[i][j];  
+                    }  
+                return max;  
+            }  
+            function left(){    // left and combination  
+                var i,j,k;  
+                var cur = new Array();  
+                for(i=1;i<=5;i++){  
+                    k=1;  
+                    for(j=1;j<=5;j++){  
+                        if(table[i][j]!=0){  
+                            cur[k++] = table[i][j];   
+                        }  
+                    }  
+                    while(k<=5)  cur[k++] = 0;  
+                    for(j=1;j<=4;j++){   //combination  
+                        if(cur[j]==cur[j+1]){  
+                            cur[j] = cur[j]+cur[j+1];  
+                            k=j+1;  
+                            while(k<=4){  
+                                cur[k] = cur[k+1];  
+                                k++;  
+                            }  
+                            cur[5]=0;  
+                        }  
+                    }  
+                    if(table[i][1]!=cur[1]||table[i][2]!=cur[2]||table[i][3]!=cur[3]||table[i][4]!=cur[4]||table[i][5]!=cur[5])  
+                        is_moved = true;     // some datas are moved  
+                    for(j=1;j<=5;j++)    table[i][j] = cur[j];  
+                }  
+            }  
+            function right(){    //right and combination  
+                var i,j,k;  
+                var cur = new Array();  
+                for(i=1;i<=5;i++){  
+                    k=5;  
+                    for(j=5;j>=1;j--){  
+                        if(table[i][j]!=0)  
+                            cur[k--] = table[i][j];  
+                    }  
+                    while(k>=1)  cur[k--] = 0;  
+                    for(j=5;j>=2;j--){     //combination  
+                        if(cur[j]==cur[j-1]){  
+                            cur[j] = cur[j]+cur[j-1];  
+                            k=j-1;  
+                            while(k>=2){  
+                                cur[k] = cur[k-1];  
+                                k--;  
+                            }  
+                            cur[1] = 0;  
+                        }  
+                    }  
+                    if(table[i][1]!=cur[1]||table[i][2]!=cur[2]||table[i][3]!=cur[3]||table[i][4]!=cur[4]||table[i][5]!=cur[5])  
+                        is_moved = true;     // some datas are moved  
+                    for(j=1;j<=5;j++)    table[i][j] = cur[j];  
+                }  
+            }  
+            function up(){    //up and combination  
+                var i,j,k;  
+                var cur = new Array();  
+                for(j=1;j<=5;j++){  
+                    k=1;  
+                    for(i=1;i<=5;i++){  
+                        if(table[i][j]!=0)  
+                            cur[k++] = table[i][j];  
+                    }  
+                    while(k<=5)  cur[k++] = 0;  
+                      
+                    for(i=1;i<=4;i++){   //combination  
+                        if(cur[i]==cur[i+1]){  
+                            cur[i] = cur[i]+cur[i+1];  
+                            k=i+1;  
+                            while(k<=4){  
+                                cur[k] = cur[k+1];  
+                                k++;  
+                            }  
+                            cur[5]=0;  
+                        }  
+                    }  
+                    if(table[1][j]!=cur[1]||table[2][j]!=cur[2]||table[3][j]!=cur[3]||table[4][j]!=cur[4]||table[5][j]!=cur[5])  
+                        is_moved = true;     // some datas are moved  
+                    for(i=1;i<=5;i++)    table[i][j] = cur[i];  
+                }  
+            }  
+              
+            function down(){    //down and combination  
+                var i,j,k;  
+                var cur = new Array();  
+                for(j=1;j<=5;j++){  
+                    k=5;  
+                    for(i=5;i>=1;i--){  
+                        if(table[i][j]!=0)  
+                            cur[k--] = table[i][j];  
+                    }  
+                    while(k>=1)  cur[k--] = 0;  
+                      
+                    for(i=5;i>=2;i--){     //combination  
+                        if(cur[i]==cur[i-1]){  
+                            cur[i] = cur[i]+cur[i-1];  
+                            k=i-1;  
+                            while(k>=2){  
+                                cur[k] = cur[k-1];  
+                                k--;  
+                            }  
+                            cur[1] = 0;  
+                        }  
+                    }  
+                    if(table[1][j]!=cur[1]||table[2][j]!=cur[2]||table[3][j]!=cur[3]||table[4][j]!=cur[4]||table[5][j]!=cur[5])  
+                        is_moved = true;     // some datas are moved  
+                    for(i=1;i<=5;i++)    table[i][j] = cur[i];  
+                }  
+            }  
+              
+            function is_over(){   //judge the game is over or not  
+                var i,j;  
+                for(i=1;i<=5;i++)     //is there any  empty position  
+                    for(j=1;j<=5;j++)  
+                        if(table[i][j]==0)    
+                            return false;     
+                for(i=1;i<=5;i++)    // is there any datas can be combinated  
+                    for(j=1;j<=4;j++)  
+                        if(table[i][j]==table[i][j+1])  
+                            return false;    
+                for(j=1;j<=5;j++)  
+                    for(i=1;i<=4;i++)  
+                        if(table[i][j]==table[i+1][j])  
+                            return false;  
+                return true;  
+            }  
+            function is_win(){   //judge the game is win or not  
+                if(get_score()==2048)  
+                    return true;  
+                return false;                 
+            }  
+              
+            function init(){   //init  
+                var i,j;  
+                for(i=1;i<=5;i++)  
+                    for(j=1;j<=5;j++)  
+                        table[i][j]=0;  
+            }  
+            function display_table(){   //   
+                var i,j,cur;  
+                for(i=1;i<=5;i++)  
+                    for(j=1;j<=5;j++){  
+                        cur = String(i)+String(j);  
+                        if(table[i][j]==0)  
+                            document.getElementById(cur).innerHTML = " ";  
+                        else{  
+                            document.getElementById(cur).innerHTML = table[i][j];  
+                        }  
+                          
+                    }  
+            }  
+            function display_score(){    // display score  
+                var score = get_score();  
+                document.getElementById("score").innerHTML = "score:"+score;  
+            }  
+            function display(){     //display  
+                display_table();  
+                display_score();  
+            }  
+              
+            function produce_new_number(){  // produce a new number randomly  
+                var num=0; // the number of empty position  
+                var i,j;  
+                var value;  // the value of the new number  
+                for(i=1;i<=5;i++)  
+                    for(j=1;j<=5;j++)  
+                        if(table[i][j]==0)  
+                            num++;  
+                var p = Math.round(Math.random()*num)+1; // the position of new number  
+                if(Math.random()<=0.5)   // the new number is 2 or 4  
+                    value = 2;  
+                else   
+                    value = 4;  
+                num=0;  
+                for(i=1;i<=5;i++)   // update table with new number   
+                    for(j=1;j<=5;j++){  
+                        if(table[i][j]==0){  
+                            num++;  
+                            if(num==p){  
+                                table[i][j] = value;  
+                                break;  
+                            }  
+                                  
+                        }  
+                    }  
+            }  
+            function over(){    // when the game is over  
+                alert("the game is over");  
+                location.reload(); //refresh  
+            }  
+            function run(){   //deal with the event when you press button  
+                var key = window.event.keyCode;  
+                //var key = window.event.keyCode||e.which;  
+                switch(key){  
+                    case 37: left();    break;  // left is pressed;  
+                    case 38: up();      break;  // up is pressed;  
+                    case 39: right();   break;  // right is pressed;  
+                    case 40: down();            // down is pressed;  
+                }     
+                if(is_moved){  
+                    produce_new_number();  
+                    is_moved = false;  
+                }  
+                display();  
+                if(is_over())  
+                    over();  
+            }  
+              
+            window.onload = function (){  
+                  
+                window.onkeyup = run;  
+                init();  
+                produce_new_number();  
+                display();  
+                  
+            }  
+        </script>  
+          
+    </head>  
+    <body>  
+        <div id="score">  
+              
+        </div>  
+        <div>  
+            <table border="2" align="center" width="375" height="375">  
+                <tr>  
+                    <td id="11">  </td>    <td id="12">   </td>    <td id="13">   </td>    <td id="14">   </td> <td id="15">   </td>      
+                </tr>  
+                <tr>  
+                    <td id="21">  </td>    <td id="22">   </td>    <td id="23">   </td>    <td id="24">   </td> <td id="25">   </td>      
+                </tr>  
+                <tr>  
+                    <td id="31">  </td>    <td id="32">   </td>    <td id="33">   </td>    <td id="34">   </td> <td id="35">   </td>    
+                </tr>  
+                <tr>  
+                    <td id="41">  </td>    <td id="42">   </td>    <td id="43">   </td>    <td id="44">   </td> <td id="45">   </td>      
+                </tr> 
+                <tr>  
+                    <td id="51">  </td>    <td id="52">   </td>    <td id="53">   </td>    <td id="54">   </td> <td id="55">   </td>      
+                </tr>
+            </table>  
+        </div>  
+    </body>  
+  
 </html>
